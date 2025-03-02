@@ -1,4 +1,4 @@
-import { base58btc, blake2b256 } from '@chelonia/multiformat'
+import { base58btc, blake2b256, type Digest } from '@chelonia/multiformats'
 import scrypt from 'scrypt-async'
 import nacl from 'tweetnacl'
 
@@ -9,7 +9,7 @@ const strToBuf = (str: string) => {
 
 const blake32Hash = (data: string | Uint8Array): string => {
   const uint8array = typeof data === 'string' ? strToBuf(data) : data
-  const digest = blake2b256.digest(uint8array)
+  const digest = blake2b256.digest(uint8array) as Digest
   // While `digest.digest` is only 32 bytes long in this case,
   // `digest.bytes` is 36 bytes because it includes a multiformat prefix.
   return base58btc.encode(digest.bytes)
@@ -44,7 +44,7 @@ const bytesOrObjectToB64 = (ary: Uint8Array) => {
     throw TypeError('Unsupported type')
   }
   return btoa(
-    Array.from(buf)
+    Array.from(ary)
       .map((c) => String.fromCharCode(c))
       .join('')
   )
