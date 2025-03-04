@@ -21,7 +21,6 @@ npm install @chelonia/crypto
 - `edwards25519sha512batch` - Ed25519 for signatures
 - `curve25519xsalsa20poly1305` - Curve25519 for asymmetric encryption
 - `xsalsa20poly1305` - XSalsa20-Poly1305 for symmetric encryption
-- `externalkm32` - 32 bytes of keying material for external keys
 
 ## Usage Examples
 
