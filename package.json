@@ -1,7 +1,7 @@
 {
   "name": "@chelonia/crypto",
   "version": "1.0.0",
-  "description": "",
+  "description": "Contains various utilities for performing cryptographic operations.",
   "main": "dist/umd/index.cjs",
   "module": "dist/esm/index.mjs",
   "types": "./dist/umd/index.d.cts",
