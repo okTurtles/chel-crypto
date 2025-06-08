@@ -18,8 +18,8 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     const tweetnacl_1 = __importDefault(require("tweetnacl"));
     const bufToStr = (() => {
         const textDecoder = new TextDecoder();
-        return (str) => {
-            return textDecoder.decode(str);
+        return (buf) => {
+            return textDecoder.decode(buf);
         };
     })();
     const strToBuf = (() => {

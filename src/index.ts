@@ -4,8 +4,8 @@ import nacl from 'tweetnacl'
 
 const bufToStr = (() => {
   const textDecoder = new TextDecoder()
-  return (str: Uint8Array) => {
-    return textDecoder.decode(str)
+  return (buf: Uint8Array) => {
+    return textDecoder.decode(buf)
   }
 })()
 

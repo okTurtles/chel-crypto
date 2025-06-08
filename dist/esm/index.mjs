@@ -3,8 +3,8 @@ import scrypt from 'scrypt-async';
 import nacl from 'tweetnacl';
 const bufToStr = (() => {
     const textDecoder = new TextDecoder();
-    return (str) => {
-        return textDecoder.decode(str);
+    return (buf) => {
+        return textDecoder.decode(buf);
     };
 })();
 const strToBuf = (() => {
