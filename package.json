@@ -1,6 +1,6 @@
 {
   "name": "@chelonia/crypto",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Contains various utilities for performing cryptographic operations.",
   "main": "dist/umd/index.cjs",
   "module": "dist/esm/index.mjs",
@@ -37,11 +37,11 @@
   },
   "homepage": "https://github.com/okTurtles/chel-crypto#readme",
   "devDependencies": {
-    "@types/scrypt-async": "^1.3.5",
-    "@typescript-eslint/eslint-plugin": "^8.21.0",
-    "eslint-config-standard": "^17.1.0",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.7.3"
+    "@types/scrypt-async": "1.3.5",
+    "@typescript-eslint/eslint-plugin": "8.33.1",
+    "eslint-config-standard": "17.1.0",
+    "ts-node": "10.9.2",
+    "typescript": "5.8.3"
   },
   "eslintConfig": {
     "root": true,
@@ -60,8 +60,8 @@
     "**/*.md"
   ],
   "dependencies": {
-    "@chelonia/multiformats": "^1.0.0",
-    "scrypt-async": "^2.0.1",
-    "tweetnacl": "^1.0.3"
+    "@chelonia/multiformats": "1.0.0",
+    "scrypt-async": "2.0.1",
+    "tweetnacl": "1.0.3"
   }
 }

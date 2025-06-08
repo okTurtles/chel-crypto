@@ -16,10 +16,18 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     const multiformats_1 = require("@chelonia/multiformats");
     const scrypt_async_1 = __importDefault(require("scrypt-async"));
     const tweetnacl_1 = __importDefault(require("tweetnacl"));
-    const strToBuf = (str) => {
+    const bufToStr = (() => {
+        const textDecoder = new TextDecoder();
+        return (buf) => {
+            return textDecoder.decode(buf);
+        };
+    })();
+    const strToBuf = (() => {
         const textEncoder = new TextEncoder();
-        return textEncoder.encode(str);
-    };
+        return (str) => {
+            return textEncoder.encode(str);
+        };
+    })();
     const blake32Hash = (data) => {
         const uint8array = typeof data === 'string' ? strToBuf(data) : data;
         const digest = multiformats_1.blake2b256.digest(uint8array);
@@ -418,7 +426,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
             if (!decrypted) {
                 throw new Error('Could not decrypt message');
             }
-            return Buffer.from(decrypted).toString('utf-8');
+            return bufToStr(decrypted);
         }
         else if (key.type === exports.CURVE25519XSALSA20POLY1305) {
             if (!key.secretKey) {
@@ -439,7 +447,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
             if (!decrypted) {
                 throw new Error('Could not decrypt message');
             }
-            return Buffer.from(decrypted).toString('utf-8');
+            return bufToStr(decrypted);
         }
         throw new Error('Unsupported algorithm');
     };

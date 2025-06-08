@@ -2,10 +2,19 @@ import { base58btc, blake2b256, type Digest } from '@chelonia/multiformats'
 import scrypt from 'scrypt-async'
 import nacl from 'tweetnacl'
 
-const strToBuf = (str: string) => {
+const bufToStr = (() => {
+  const textDecoder = new TextDecoder()
+  return (buf: Uint8Array) => {
+    return textDecoder.decode(buf)
+  }
+})()
+
+const strToBuf = (() => {
   const textEncoder = new TextEncoder()
-  return textEncoder.encode(str)
-}
+  return (str: string) => {
+    return textEncoder.encode(str)
+  }
+})()
 
 const blake32Hash = (data: string | Uint8Array): string => {
   const uint8array = typeof data === 'string' ? strToBuf(data) : data
@@ -484,7 +493,7 @@ export const decrypt = (inKey: Key | string, data: string, ad?: string): string 
       throw new Error('Could not decrypt message')
     }
 
-    return Buffer.from(decrypted).toString('utf-8')
+    return bufToStr(decrypted)
   } else if (key.type === CURVE25519XSALSA20POLY1305) {
     if (!key.secretKey) {
       throw new Error('Secret key missing')
@@ -512,7 +521,7 @@ export const decrypt = (inKey: Key | string, data: string, ad?: string): string 
       throw new Error('Could not decrypt message')
     }
 
-    return Buffer.from(decrypted).toString('utf-8')
+    return bufToStr(decrypted)
   }
 
   throw new Error('Unsupported algorithm')
