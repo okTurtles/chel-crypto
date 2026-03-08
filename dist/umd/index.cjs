@@ -12,7 +12,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 })(function (require, exports) {
     "use strict";
     Object.defineProperty(exports, "__esModule", { value: true });
-    exports.decrypt = exports.encrypt = exports.verifySignature = exports.sign = exports.keyId = exports.keygenOfSameType = exports.deserializeKey = exports.serializeKey = exports.deriveKeyFromPassword = exports.generateSalt = exports.keygen = exports.EXTERNALKM32 = exports.XSALSA20POLY1305 = exports.CURVE25519XSALSA20POLY1305 = exports.EDWARDS25519SHA512BATCH = exports.SNULL = exports.ENULL = void 0;
+    exports.decrypt = exports.encrypt = exports.verifySignature = exports.sign = exports.keyId = exports.keygenOfSameType = exports.deserializeKey = exports.serializeKey = exports.deriveKeyFromPassword = exports.generateSalt = exports.keygen = exports.HMACSHA512 = exports.EXTERNALKM32 = exports.XSALSA20POLY1305 = exports.CURVE25519XSALSA20POLY1305 = exports.EDWARDS25519SHA512BATCH = exports.SNULL = exports.ENULL = void 0;
     const multiformats_1 = require("@chelonia/multiformats");
     const scrypt_async_1 = __importDefault(require("scrypt-async"));
     const tweetnacl_1 = __importDefault(require("tweetnacl"));
@@ -49,6 +49,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
     exports.XSALSA20POLY1305 = 'xsalsa20poly1305';
     // 32 bytes of keying material, used for external keys (such as files)
     exports.EXTERNALKM32 = 'externalkm32';
+    exports.HMACSHA512 = 'hmacsha512';
     if (process.env.NODE_ENV === 'production' && process.env.ENABLE_UNSAFE_NULL_CRYPTO === 'true') {
         throw new Error('ENABLE_UNSAFE_NULL_CRYPTO cannot be enabled in production mode');
     }
@@ -100,6 +101,13 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
                 type
             };
             Object.defineProperty(res, 'secretKey', { value: tweetnacl_1.default.randomBytes(32) });
+            return res;
+        }
+        else if (type === exports.HMACSHA512) {
+            const res = {
+                type
+            };
+            Object.defineProperty(res, 'secretKey', { value: tweetnacl_1.default.randomBytes(128) });
             return res;
         }
         throw new Error('Unsupported key type');
@@ -187,7 +195,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
                 bytesOrObjectToB64(key.secretKey)
             ], undefined, 0);
         }
-        else if (key.type === exports.XSALSA20POLY1305) {
+        else if (key.type === exports.XSALSA20POLY1305 || key.type === exports.HMACSHA512) {
             if (!saveSecretKey) {
                 throw new Error('Unsupported operation: no public key to export');
             }
@@ -257,7 +265,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
             }
             throw new Error('Missing secret or public key');
         }
-        else if (keyData[0] === exports.XSALSA20POLY1305) {
+        else if (keyData[0] === exports.XSALSA20POLY1305 || keyData[0] === exports.HMACSHA512) {
             if (!keyData[2]) {
                 throw new Error('Secret key missing');
             }
@@ -289,16 +297,39 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
             }
             return key.secretKey + ';' + blake32Hash(data);
         }
-        if (key.type !== exports.EDWARDS25519SHA512BATCH) {
-            throw new Error('Unsupported algorithm');
-        }
         if (!key.secretKey) {
             throw new Error('Secret key missing');
         }
         const messageUint8 = strToBuf(data);
-        const signature = tweetnacl_1.default.sign.detached(messageUint8, key.secretKey);
-        const base64Signature = bytesOrObjectToB64(signature);
-        return base64Signature;
+        if (key.type === exports.EDWARDS25519SHA512BATCH) {
+            const signature = tweetnacl_1.default.sign.detached(messageUint8, key.secretKey);
+            const base64Signature = bytesOrObjectToB64(signature);
+            return base64Signature;
+        }
+        else if (key.type === exports.HMACSHA512) {
+            const secretKey = key.secretKey;
+            const blockSize = 128; // SHA-512
+            const kOpad = new Uint8Array(blockSize);
+            const kIpad = new Uint8Array(blockSize + messageUint8.byteLength);
+            const hmacKey = secretKey.byteLength > blockSize ? tweetnacl_1.default.hash(secretKey) : secretKey;
+            const keyBlock = new Uint8Array(blockSize);
+            keyBlock.set(hmacKey);
+            for (let i = 0; i < blockSize; i++) {
+                kOpad[i] = keyBlock[i] ^ 0x5c;
+                kIpad[i] = keyBlock[i] ^ 0x36;
+            }
+            kIpad.set(messageUint8, blockSize);
+            const inner = tweetnacl_1.default.hash(kIpad);
+            const dataBuf = new Uint8Array(kOpad.byteLength + inner.byteLength);
+            dataBuf.set(kOpad, 0);
+            dataBuf.set(inner, kOpad.byteLength);
+            const signature = tweetnacl_1.default.hash(dataBuf);
+            const base64Signature = bytesOrObjectToB64(signature);
+            return base64Signature;
+        }
+        else {
+            throw new Error('Unsupported algorithm');
+        }
     };
     exports.sign = sign;
     const verifySignature = (inKey, data, signature) => {
@@ -312,17 +343,29 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
             }
             return;
         }
-        if (key.type !== exports.EDWARDS25519SHA512BATCH) {
+        if (key.type === exports.EDWARDS25519SHA512BATCH) {
+            if (!key.publicKey) {
+                throw new Error('Public key missing');
+            }
+            const decodedSignature = b64ToBuf(signature);
+            const messageUint8 = strToBuf(data);
+            const result = tweetnacl_1.default.sign.detached.verify(messageUint8, decodedSignature, key.publicKey);
+            if (!result) {
+                throw new Error('Invalid signature');
+            }
+        }
+        else if (key.type === exports.HMACSHA512) {
+            const mac = (0, exports.sign)(key, data);
+            let r = mac.length ^ signature.length;
+            for (let i = 0; i < mac.length; i++) {
+                r |= signature.charCodeAt(i) ^ mac.charCodeAt(i);
+            }
+            if (r !== 0) {
+                throw new Error('Invalid signature');
+            }
+        }
+        else {
             throw new Error('Unsupported algorithm');
-        }
-        if (!key.publicKey) {
-            throw new Error('Public key missing');
-        }
-        const decodedSignature = b64ToBuf(signature);
-        const messageUint8 = strToBuf(data);
-        const result = tweetnacl_1.default.sign.detached.verify(messageUint8, decodedSignature, key.publicKey);
-        if (!result) {
-            throw new Error('Invalid signature');
         }
     };
     exports.verifySignature = verifySignature;

@@ -4,6 +4,7 @@ export declare const EDWARDS25519SHA512BATCH = "edwards25519sha512batch";
 export declare const CURVE25519XSALSA20POLY1305 = "curve25519xsalsa20poly1305";
 export declare const XSALSA20POLY1305 = "xsalsa20poly1305";
 export declare const EXTERNALKM32 = "externalkm32";
+export declare const HMACSHA512 = "hmacsha512";
 export type Key = {
     type: string;
     secretKey?: unknown;

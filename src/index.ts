@@ -43,6 +43,7 @@ export const CURVE25519XSALSA20POLY1305 = 'curve25519xsalsa20poly1305'
 export const XSALSA20POLY1305 = 'xsalsa20poly1305'
 // 32 bytes of keying material, used for external keys (such as files)
 export const EXTERNALKM32 = 'externalkm32'
+export const HMACSHA512 = 'hmacsha512'
 
 if (process.env.NODE_ENV === 'production' && process.env.ENABLE_UNSAFE_NULL_CRYPTO === 'true') {
   throw new Error('ENABLE_UNSAFE_NULL_CRYPTO cannot be enabled in production mode')
@@ -112,6 +113,14 @@ export const keygen = (type: string): Key => {
     }
 
     Object.defineProperty(res, 'secretKey', { value: nacl.randomBytes(32) })
+
+    return res
+  } else if (type === HMACSHA512) {
+    const res: Key = {
+      type
+    }
+
+    Object.defineProperty(res, 'secretKey', { value: nacl.randomBytes(128) })
 
     return res
   }
@@ -204,7 +213,7 @@ export const serializeKey = (key: Key, saveSecretKey: boolean): string => {
       null,
       bytesOrObjectToB64(key.secretKey as Uint8Array)
     ], undefined, 0)
-  } else if (key.type === XSALSA20POLY1305) {
+  } else if (key.type === XSALSA20POLY1305 || key.type === HMACSHA512) {
     if (!saveSecretKey) {
       throw new Error('Unsupported operation: no public key to export')
     }
@@ -284,7 +293,7 @@ export const deserializeKey = (data: string): Key => {
     }
 
     throw new Error('Missing secret or public key')
-  } else if (keyData[0] === XSALSA20POLY1305) {
+  } else if (keyData[0] === XSALSA20POLY1305 || keyData[0] === HMACSHA512) {
     if (!keyData[2]) {
       throw new Error('Secret key missing')
     }
@@ -322,20 +331,47 @@ export const sign = (inKey: Key | string, data: string): string => {
     return key.secretKey + ';' + blake32Hash(data)
   }
 
-  if (key.type !== EDWARDS25519SHA512BATCH) {
-    throw new Error('Unsupported algorithm')
-  }
-
   if (!key.secretKey) {
     throw new Error('Secret key missing')
   }
 
   const messageUint8 = strToBuf(data)
-  const signature = nacl.sign.detached(messageUint8, key.secretKey as Uint8Array)
-  const base64Signature = bytesOrObjectToB64(signature)
+  if (key.type === EDWARDS25519SHA512BATCH) {
+    const signature = nacl.sign.detached(messageUint8, key.secretKey as Uint8Array)
+    const base64Signature = bytesOrObjectToB64(signature)
 
-  return base64Signature
+    return base64Signature
+  } else if (key.type === HMACSHA512) {
+    const secretKey = key.secretKey as Uint8Array
+    const blockSize = 128 // SHA-512
+    const kOpad = new Uint8Array(blockSize)
+    const kIpad = new Uint8Array(blockSize + messageUint8.byteLength)
+
+    const hmacKey = secretKey.byteLength > blockSize ? nacl.hash(secretKey) : secretKey
+    const keyBlock = new Uint8Array(blockSize)
+    keyBlock.set(hmacKey)
+
+    for (let i = 0; i < blockSize; i++) {
+      kOpad[i] = keyBlock[i] ^ 0x5c
+      kIpad[i] = keyBlock[i] ^ 0x36
+    }
+
+    kIpad.set(messageUint8, blockSize)
+    const inner = nacl.hash(kIpad)
+
+    const dataBuf = new Uint8Array(kOpad.byteLength + inner.byteLength)
+    dataBuf.set(kOpad, 0)
+    dataBuf.set(inner, kOpad.byteLength)
+
+    const signature = nacl.hash(dataBuf)
+    const base64Signature = bytesOrObjectToB64(signature)
+
+    return base64Signature
+  } else {
+    throw new Error('Unsupported algorithm')
+  }
 }
+
 export const verifySignature = (inKey: Key | string, data: string, signature: string): void => {
   const key = typeof inKey === 'string' ? deserializeKey(inKey) : inKey
 
@@ -349,21 +385,32 @@ export const verifySignature = (inKey: Key | string, data: string, signature: st
     return
   }
 
-  if (key.type !== EDWARDS25519SHA512BATCH) {
+  if (key.type === EDWARDS25519SHA512BATCH) {
+    if (!key.publicKey) {
+      throw new Error('Public key missing')
+    }
+
+    const decodedSignature = b64ToBuf(signature)
+    const messageUint8 = strToBuf(data)
+
+    const result = nacl.sign.detached.verify(messageUint8, decodedSignature, key.publicKey as Uint8Array)
+
+    if (!result) {
+      throw new Error('Invalid signature')
+    }
+  } else if (key.type === HMACSHA512) {
+    const mac = sign(key, data)
+    let r = mac.length ^ signature.length
+
+    for (let i = 0; i < mac.length; i++) {
+      r |= signature.charCodeAt(i) ^ mac.charCodeAt(i)
+    }
+
+    if (r !== 0) {
+      throw new Error('Invalid signature')
+    }
+  } else {
     throw new Error('Unsupported algorithm')
-  }
-
-  if (!key.publicKey) {
-    throw new Error('Public key missing')
-  }
-
-  const decodedSignature = b64ToBuf(signature)
-  const messageUint8 = strToBuf(data)
-
-  const result = nacl.sign.detached.verify(messageUint8, decodedSignature, key.publicKey as Uint8Array)
-
-  if (!result) {
-    throw new Error('Invalid signature')
   }
 }
 
